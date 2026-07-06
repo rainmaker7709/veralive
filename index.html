@@ -24,6 +24,15 @@
     --danger:#C94B4B;
     --purple:#9B7FD4;
     --purple-dark:#7B5FB4;
+    --adm-bg:#F4EEFB;
+    --adm-surface:#FFFFFF;
+    --adm-card:#F9F5FF;
+    --adm-line:#DCCBF2;
+    --adm-ink:#3B2A66;
+    --adm-ink-soft:#7A67A8;
+    --adm-accent:#9B7FD4;
+    --adm-accent-dark:#7A5BC0;
+    --adm-accent-soft:#ECE1FA;
     --radius:18px;
     --radius-sm:12px;
     --shadow:0 4px 18px rgba(34,31,30,0.07);
@@ -384,6 +393,74 @@
   .admin-candidate-item:active{background:var(--accent-soft);}
   .admin-candidate-name{font-size:14px;font-weight:700;}
   .admin-candidate-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
+  .admin-back-list-btn{
+    display:inline-block;
+    border:1.5px solid var(--accent);
+    background:var(--accent-soft);
+    color:var(--accent-dark);
+    font-size:13px;
+    font-weight:700;
+    padding:8px 14px;
+    border-radius:999px;
+    cursor:pointer;
+    margin-bottom:12px;
+  }
+  .admin-back-list-btn:active{background:var(--accent);color:#fff;}
+
+  .admin-lightform-banner{
+    display:block;
+    text-align:center;
+    font-size:14px;
+    font-weight:800;
+    color:#fff;
+    text-decoration:none;
+    padding:12px 16px;
+    border-radius:var(--radius-sm);
+    box-shadow:var(--shadow);
+    margin-bottom:14px;
+    background:linear-gradient(135deg,var(--purple) 0%,var(--purple-dark) 100%);
+  }
+  .admin-lightform-banner:active{opacity:.85;}
+
+  /* ▼ 관리자 모드 전용 파스텔 보라 테마 */
+  body.admin-mode{background:var(--adm-bg);color:var(--adm-ink);}
+  body.admin-mode .card{background:var(--adm-card);border-color:var(--adm-line);box-shadow:0 4px 18px rgba(123,91,192,0.14);}
+  body.admin-mode .topbar-title{color:var(--adm-ink);}
+  body.admin-mode .section-label{color:var(--adm-ink);}
+  body.admin-mode .search-title{color:var(--adm-ink);}
+  body.admin-mode .search-hint{color:var(--adm-ink-soft);}
+  body.admin-mode .search-row input{border-color:var(--adm-line);color:var(--adm-ink);background:#fff;}
+  body.admin-mode .search-row input:focus{border-color:var(--adm-accent-dark);}
+  body.admin-mode .field label{color:var(--adm-ink-soft);}
+  body.admin-mode .field input{border-color:var(--adm-line);color:var(--adm-ink);}
+  body.admin-mode .field input:focus{border-color:var(--adm-accent-dark);}
+  body.admin-mode .btn-primary{background:var(--adm-accent-dark);}
+  body.admin-mode .btn-primary:active{background:#5F4494;}
+  body.admin-mode .btn-back{background:var(--adm-accent-soft);color:var(--adm-accent-dark);border-color:var(--adm-accent);}
+  body.admin-mode .btn-back:active{background:var(--adm-accent);color:#fff;}
+  body.admin-mode .card-header-band.band-search{background:linear-gradient(90deg, var(--adm-accent-dark) 0%, var(--adm-accent) 100%);}
+  body.admin-mode .admin-member-card{background:var(--adm-accent-soft);}
+  body.admin-mode .admin-member-row{color:var(--adm-ink);}
+  body.admin-mode .admin-member-row span:first-child{color:var(--adm-ink-soft);}
+  body.admin-mode .admin-member-row span:last-child{color:var(--adm-ink);}
+  body.admin-mode .admin-candidate-item{background:var(--adm-surface);border-color:var(--adm-line);}
+  body.admin-mode .admin-candidate-item:active{background:var(--adm-accent-soft);}
+  body.admin-mode .admin-candidate-name{color:var(--adm-ink);}
+  body.admin-mode .admin-candidate-sub{color:var(--adm-ink-soft);}
+  body.admin-mode .admin-back-list-btn{background:var(--adm-accent-soft);color:var(--adm-accent-dark);border-color:var(--adm-accent);}
+  body.admin-mode .admin-back-list-btn:active{background:var(--adm-accent);color:#fff;}
+  body.admin-mode .admin-lightform-banner{background:linear-gradient(135deg, var(--adm-accent) 0%, var(--adm-accent-dark) 100%);}
+  body.admin-mode .summary-stat{background:var(--adm-bg);}
+  body.admin-mode .stat-label{color:var(--adm-ink);}
+  body.admin-mode .stat-value,
+  body.admin-mode .stat-value.accent{color:var(--adm-ink);}
+  body.admin-mode .reward-row{background:var(--adm-accent-soft);color:var(--adm-accent-dark);}
+  body.admin-mode .toggle-row{color:var(--adm-ink);}
+  body.admin-mode .toggle-row input{accent-color:var(--adm-accent-dark);}
+  body.admin-mode .order-item{border-color:var(--adm-line);}
+  body.admin-mode .order-item-name{color:var(--adm-ink);}
+  body.admin-mode .empty-msg{color:var(--adm-ink-soft);}
 
   .link-banners{display:flex;gap:8px;margin-bottom:12px;}
   .link-banner{
@@ -802,6 +879,8 @@
       <h2 class="topbar-title">관리자 모드</h2>
     </div>
 
+    <a class="admin-lightform-banner" href="https://lightform.kr" target="_blank" rel="noopener">🛠️ 라이트폼관리</a>
+
     <div class="card search-card admin-search-fixed">
       <div class="card-header-band band-search">🔍 닉네임 · 성명 · 전화번호 검색</div>
       <div class="search-row">
@@ -827,6 +906,7 @@
   var accountLine2 = '';
   var editOriginalPhone = '';
   var adminToken = '';
+  var adminLastCandidates = null; // 동명이인 목록 뒤로가기용 상태 저장
 
   function $(id){ return document.getElementById(id); }
   function won(n){ return Math.round(n).toLocaleString('ko-KR') + '원'; }
@@ -836,6 +916,11 @@
     document.querySelectorAll('.screen').forEach(function(el){ el.classList.add('hidden'); });
     $(id).classList.remove('hidden');
     window.scrollTo(0,0);
+    if(id === 'screen-admin-login' || id === 'screen-admin'){
+      document.body.classList.add('admin-mode');
+    } else {
+      document.body.classList.remove('admin-mode');
+    }
   }
 
   function showLoading(){ $('loading-overlay').classList.remove('hidden'); }
@@ -1231,6 +1316,7 @@
 
   function resetAdminState(){
     adminToken = '';
+    adminLastCandidates = null;
     $('admin-password').value = '';
     $('admin-search-input').value = '';
     $('admin-result-area').innerHTML = '';
@@ -1293,39 +1379,63 @@
     }
 
     if(res.multiple){
-      var hint = document.createElement('p');
-      hint.className = 'search-hint';
-      hint.textContent = '동일한 이름의 회원이 여러 명 있습니다. 대상을 선택해주세요.';
-      area.appendChild(hint);
-
-      res.candidates.forEach(function(c){
-        var item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'admin-candidate-item';
-        item.innerHTML =
-          '<span class="admin-candidate-name">' + c.nickname + '</span>' +
-          '<span class="admin-candidate-sub">' + c.name + ' · ' + c.phone + '</span>';
-        item.addEventListener('click', function(){
-          showLoading();
-          gsRun('adminGetOrdersByNickname', adminToken, c.nickname).then(function(detailRes){
-            hideLoading();
-            handleAdminSearchResult(detailRes);
-          }).catch(function(err){
-            hideLoading();
-            showModal('조회 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
-          });
-        });
-        area.appendChild(item);
-      });
+      adminLastCandidates = res.candidates;
+      renderAdminCandidateList(res.candidates);
       return;
     }
 
+    adminLastCandidates = null;
     renderAdminDetail(res);
+  }
+
+  function renderAdminCandidateList(candidates){
+    var area = $('admin-result-area');
+    area.innerHTML = '';
+
+    var hint = document.createElement('p');
+    hint.className = 'search-hint';
+    hint.textContent = '동일한 이름의 회원이 여러 명 있습니다. 대상을 선택해주세요.';
+    area.appendChild(hint);
+
+    candidates.forEach(function(c){
+      var item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'admin-candidate-item';
+      item.innerHTML =
+        '<span class="admin-candidate-name">' + c.nickname + '</span>' +
+        '<span class="admin-candidate-sub">' + c.name + ' · ' + c.phone + '</span>';
+      item.addEventListener('click', function(){
+        showLoading();
+        gsRun('adminGetOrdersByNickname', adminToken, c.nickname).then(function(detailRes){
+          hideLoading();
+          if(!detailRes.success){
+            showModal(detailRes.message || '조회에 실패했습니다.');
+            return;
+          }
+          renderAdminDetail(detailRes);
+        }).catch(function(err){
+          hideLoading();
+          showModal('조회 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
+        });
+      });
+      area.appendChild(item);
+    });
   }
 
   function renderAdminDetail(res){
     var area = $('admin-result-area');
     area.innerHTML = '';
+
+    if(adminLastCandidates){
+      var backBtn = document.createElement('button');
+      backBtn.type = 'button';
+      backBtn.className = 'admin-back-list-btn';
+      backBtn.textContent = '← 목록으로';
+      backBtn.addEventListener('click', function(){
+        renderAdminCandidateList(adminLastCandidates);
+      });
+      area.appendChild(backBtn);
+    }
 
     var memberCard = document.createElement('div');
     memberCard.className = 'admin-member-card';
@@ -1335,6 +1445,50 @@
       '<div class="admin-member-row"><span>전화번호</span><span>' + (res.phone || '-') + '</span></div>' +
       '<div class="admin-member-row"><span>적립금</span><span>' + (res.hasReward ? won(res.reward||0) : '없음') + '</span></div>';
     area.appendChild(memberCard);
+
+    // ▼ 일반회원 조회 결과창과 동일한 요약패널(구매건수/총금액/택배비포함여부/적립금사용)
+    var adminItems = res.items || [];
+    var adminReward = res.reward || 0;
+    var adminHasReward = !!res.hasReward;
+
+    var summaryCard = document.createElement('div');
+    summaryCard.className = 'card summary-card';
+    summaryCard.innerHTML =
+      '<div class="summary-top">' +
+        '<div class="summary-stat"><span class="stat-label">구매건수</span><span class="stat-value" id="admin-sum-qty">0개</span></div>' +
+        '<div class="summary-stat"><span class="stat-label">총 금액</span><span class="stat-value accent" id="admin-sum-total">0원</span></div>' +
+      '</div>' +
+      '<p class="shipping-note" id="admin-shipping-note"></p>' +
+      '<div class="reward-row"><span>적립금</span><span id="admin-sum-reward">없음</span></div>' +
+      '<div class="toggle-row" id="admin-toggle-row">' +
+        '<label><input type="checkbox" id="admin-chk-no-shipping"> 택배비 미포함된 총금액</label>' +
+        '<label><input type="checkbox" id="admin-chk-use-reward"> 적립금 사용</label>' +
+      '</div>';
+    area.appendChild(summaryCard);
+
+    var adminNoShipEl = summaryCard.querySelector('#admin-chk-no-shipping');
+    var adminUseRewardEl = summaryCard.querySelector('#admin-chk-use-reward');
+
+    function updateAdminSummary(){
+      var qty = 0, base = 0;
+      adminItems.forEach(function(it){ qty += (it.qty||0); base += (it.total||0); });
+      var noShipping = adminNoShipEl.checked;
+      var useReward = adminUseRewardEl.checked;
+      var shipping = noShipping ? 0 : SHIPPING_FEE;
+      var rewardUsed = (adminHasReward && useReward) ? adminReward : 0;
+      var total = base + shipping - rewardUsed;
+      if(total < 0) total = 0;
+      var noItems = adminItems.length === 0;
+      summaryCard.querySelector('#admin-sum-qty').textContent = noItems ? '없음' : qty + '개';
+      summaryCard.querySelector('#admin-sum-total').textContent = noItems ? '-' : won(total);
+      summaryCard.querySelector('#admin-shipping-note').textContent = noItems ? '' : (noShipping ? '배송비 3,500원이 포함되지 않은 금액입니다' : '배송비 3,500원이 포함된 총 금액입니다');
+      summaryCard.querySelector('#admin-sum-reward').textContent = adminHasReward ? won(adminReward) : '없음';
+      summaryCard.querySelector('#admin-toggle-row').style.display = noItems ? 'none' : '';
+    }
+
+    adminNoShipEl.addEventListener('change', updateAdminSummary);
+    adminUseRewardEl.addEventListener('change', updateAdminSummary);
+    updateAdminSummary();
 
     var listCard = document.createElement('div');
     listCard.className = 'card list-card';
@@ -1347,7 +1501,6 @@
     var listEl = document.createElement('div');
     listEl.className = 'order-list-scroll';
 
-    var adminItems = res.items || [];
     if(!adminItems.length){
       var empty = document.createElement('div');
       empty.className = 'empty-msg';
