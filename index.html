@@ -408,6 +408,29 @@
   }
   .admin-back-list-btn:active{background:var(--accent);color:#fff;}
 
+  .admin-withdrawn-tag{
+    display:inline-block;
+    font-size:11px;
+    font-weight:800;
+    color:#fff;
+    background:#D6336C;
+    border-radius:999px;
+    padding:2px 7px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .admin-withdrawn-banner{
+    background:#FDEAEA;
+    border:1px solid #F0B7B7;
+    color:#C62828;
+    font-size:13.5px;
+    font-weight:700;
+    border-radius:var(--radius-sm);
+    padding:12px 14px;
+    margin-bottom:14px;
+    text-align:center;
+  }
+
   .admin-lightform-banner{
     display:block;
     text-align:center;
@@ -1402,7 +1425,7 @@
       item.type = 'button';
       item.className = 'admin-candidate-item';
       item.innerHTML =
-        '<span class="admin-candidate-name">' + c.nickname + '</span>' +
+        '<span class="admin-candidate-name">' + c.nickname + (c.withdrawn ? ' <span class="admin-withdrawn-tag">탈퇴</span>' : '') + '</span>' +
         '<span class="admin-candidate-sub">' + c.name + ' · ' + c.phone + '</span>';
       item.addEventListener('click', function(){
         showLoading();
@@ -1435,6 +1458,13 @@
         renderAdminCandidateList(adminLastCandidates);
       });
       area.appendChild(backBtn);
+    }
+
+    if(res.withdrawnNote){
+      var withdrawnBanner = document.createElement('div');
+      withdrawnBanner.className = 'admin-withdrawn-banner';
+      withdrawnBanner.textContent = res.withdrawnNote;
+      area.appendChild(withdrawnBanner);
     }
 
     var memberCard = document.createElement('div');
