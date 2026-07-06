@@ -347,6 +347,44 @@
     cursor:pointer;
   }
 
+  .admin-entry-wrap{text-align:center;margin-top:18px;}
+  .admin-entry-link{
+    background:none;border:none;
+    color:var(--ink-soft);
+    font-size:11.5px;
+    opacity:.55;
+    cursor:pointer;
+    text-decoration:underline;
+  }
+
+  .admin-search-fixed{position:sticky;top:0;z-index:10;}
+  .admin-member-card{
+    background:var(--accent-soft);
+    border-radius:var(--radius-sm);
+    padding:14px;
+    margin-bottom:14px;
+  }
+  .admin-member-row{
+    display:flex;justify-content:space-between;
+    font-size:13.5px;color:var(--ink);
+    padding:4px 0;
+  }
+  .admin-member-row span:first-child{color:var(--ink-soft);}
+  .admin-member-row span:last-child{font-weight:700;}
+  .admin-candidate-item{
+    display:flex;flex-direction:column;
+    width:100%;text-align:left;
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    padding:12px 14px;
+    margin-bottom:8px;
+    cursor:pointer;
+  }
+  .admin-candidate-item:active{background:var(--accent-soft);}
+  .admin-candidate-name{font-size:14px;font-weight:700;}
+  .admin-candidate-sub{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+
   .link-banners{display:flex;gap:8px;margin-bottom:12px;}
   .link-banner{
     flex:1;
@@ -612,6 +650,10 @@
       <span class="banner-btn-title">회원정보 수정</span>
       <span class="banner-btn-sub">닉네임 · 성명 · 전화번호 변경</span>
     </button>
+
+    <div class="admin-entry-wrap">
+      <button class="admin-entry-link" id="btn-admin-entry">관리자</button>
+    </div>
   </div>
 
   <!-- REGISTER SCREEN -->
@@ -738,6 +780,39 @@
     </div>
   </div>
 
+  <!-- ADMIN LOGIN SCREEN -->
+  <div id="screen-admin-login" class="screen hidden">
+    <div class="topbar">
+      <button class="btn-back" data-target="screen-main">← 메인으로</button>
+      <h2 class="topbar-title">관리자 로그인</h2>
+    </div>
+    <div class="card">
+      <div class="field">
+        <label>관리자 비밀번호</label>
+        <input type="password" id="admin-password" placeholder="비밀번호 입력">
+      </div>
+      <button class="btn-primary full" id="btn-admin-login">로그인</button>
+    </div>
+  </div>
+
+  <!-- ADMIN SEARCH SCREEN -->
+  <div id="screen-admin" class="screen hidden">
+    <div class="topbar">
+      <button class="btn-back" id="btn-admin-exit">나가기</button>
+      <h2 class="topbar-title">관리자 모드</h2>
+    </div>
+
+    <div class="card search-card admin-search-fixed">
+      <div class="card-header-band band-search">🔍 닉네임 · 성명 · 전화번호 검색</div>
+      <div class="search-row">
+        <input type="text" id="admin-search-input" placeholder="닉네임, 성명 또는 전화번호 입력">
+        <button class="btn-primary" id="btn-admin-search">검색</button>
+      </div>
+    </div>
+
+    <div id="admin-result-area"></div>
+  </div>
+
 </div>
 
 <script>
@@ -751,6 +826,7 @@
   var accountLine1 = '';
   var accountLine2 = '';
   var editOriginalPhone = '';
+  var adminToken = '';
 
   function $(id){ return document.getElementById(id); }
   function won(n){ return Math.round(n).toLocaleString('ko-KR') + '원'; }
@@ -1146,6 +1222,202 @@
     $('edit-form-card').classList.add('hidden');
     $('edit-lookup-card').classList.remove('hidden');
   }
+
+  /* ---------------- 관리자 모드 ---------------- */
+
+  $('btn-admin-entry').addEventListener('click', function(){
+    window.open(window.location.pathname + '?admin=1', '_blank');
+  });
+
+  function resetAdminState(){
+    adminToken = '';
+    $('admin-password').value = '';
+    $('admin-search-input').value = '';
+    $('admin-result-area').innerHTML = '';
+  }
+
+  $('btn-admin-login').addEventListener('click', function(){
+    var pw = $('admin-password').value;
+    if(!pw){
+      showModal('비밀번호를 입력해주세요.');
+      return;
+    }
+    showLoading();
+    gsRun('adminLogin', pw).then(function(res){
+      hideLoading();
+      if(!res.success){
+        showModal(res.message || '로그인에 실패했습니다.');
+        return;
+      }
+      adminToken = res.token;
+      $('admin-password').value = '';
+      showScreen('screen-admin');
+    }).catch(function(err){
+      hideLoading();
+      showModal('로그인 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
+    });
+  });
+
+  $('btn-admin-exit').addEventListener('click', function(){
+    resetAdminState();
+    showScreen('screen-main');
+  });
+
+  $('btn-admin-search').addEventListener('click', function(){
+    var kw = $('admin-search-input').value.trim();
+    if(!kw){
+      showModal('검색어를 입력해주세요.');
+      return;
+    }
+    showLoading();
+    gsRun('adminSearchMembers', adminToken, kw).then(function(res){
+      hideLoading();
+      handleAdminSearchResult(res);
+    }).catch(function(err){
+      hideLoading();
+      showModal('검색 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
+    });
+  });
+
+  $('admin-search-input').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ $('btn-admin-search').click(); }
+  });
+
+  function handleAdminSearchResult(res){
+    var area = $('admin-result-area');
+    area.innerHTML = '';
+
+    if(!res.success){
+      showModal(res.message || '검색 결과가 없습니다.');
+      return;
+    }
+
+    if(res.multiple){
+      var hint = document.createElement('p');
+      hint.className = 'search-hint';
+      hint.textContent = '동일한 이름의 회원이 여러 명 있습니다. 대상을 선택해주세요.';
+      area.appendChild(hint);
+
+      res.candidates.forEach(function(c){
+        var item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'admin-candidate-item';
+        item.innerHTML =
+          '<span class="admin-candidate-name">' + c.nickname + '</span>' +
+          '<span class="admin-candidate-sub">' + c.name + ' · ' + c.phone + '</span>';
+        item.addEventListener('click', function(){
+          showLoading();
+          gsRun('adminGetOrdersByNickname', adminToken, c.nickname).then(function(detailRes){
+            hideLoading();
+            handleAdminSearchResult(detailRes);
+          }).catch(function(err){
+            hideLoading();
+            showModal('조회 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
+          });
+        });
+        area.appendChild(item);
+      });
+      return;
+    }
+
+    renderAdminDetail(res);
+  }
+
+  function renderAdminDetail(res){
+    var area = $('admin-result-area');
+    area.innerHTML = '';
+
+    var memberCard = document.createElement('div');
+    memberCard.className = 'admin-member-card';
+    memberCard.innerHTML =
+      '<div class="admin-member-row"><span>닉네임</span><span>' + (res.nickname || '-') + '</span></div>' +
+      '<div class="admin-member-row"><span>성명</span><span>' + (res.name || '-') + '</span></div>' +
+      '<div class="admin-member-row"><span>전화번호</span><span>' + (res.phone || '-') + '</span></div>' +
+      '<div class="admin-member-row"><span>적립금</span><span>' + (res.hasReward ? won(res.reward||0) : '없음') + '</span></div>';
+    area.appendChild(memberCard);
+
+    var listCard = document.createElement('div');
+    listCard.className = 'card list-card';
+
+    var label = document.createElement('h3');
+    label.className = 'section-label';
+    label.textContent = '세부 구매목록';
+    listCard.appendChild(label);
+
+    var listEl = document.createElement('div');
+    listEl.className = 'order-list-scroll';
+
+    var adminItems = res.items || [];
+    if(!adminItems.length){
+      var empty = document.createElement('div');
+      empty.className = 'empty-msg';
+      empty.textContent = '구매내역이 없습니다.';
+      listEl.appendChild(empty);
+    } else {
+      adminItems.forEach(function(it, idx){
+        var row = document.createElement('div');
+        row.className = 'order-item';
+
+        var left = document.createElement('div');
+        left.className = 'order-item-left';
+
+        if(it.productNo){
+          var noBadge = document.createElement('div');
+          noBadge.className = 'order-item-no-badge';
+          noBadge.textContent = '상품번호. ' + it.productNo;
+          left.appendChild(noBadge);
+        }
+
+        var header = document.createElement('div');
+        header.className = 'order-item-header';
+
+        var numBadge = document.createElement('span');
+        numBadge.className = 'order-item-num';
+        numBadge.textContent = idx + 1;
+        header.appendChild(numBadge);
+
+        var nameEl = document.createElement('span');
+        nameEl.className = 'order-item-name';
+        nameEl.textContent = it.productName || '-';
+        header.appendChild(nameEl);
+
+        left.appendChild(header);
+
+        if(it.option){
+          var opt = document.createElement('div');
+          opt.className = 'order-item-option';
+          opt.textContent = it.option;
+          left.appendChild(opt);
+        }
+
+        var right = document.createElement('div');
+        right.className = 'order-item-right';
+        var qtyEl = document.createElement('div');
+        qtyEl.className = 'order-item-qty';
+        qtyEl.textContent = (it.price||0).toLocaleString('ko-KR') + '원 × ' + (it.qty||0) + '개';
+        var totalEl = document.createElement('div');
+        totalEl.className = 'order-item-total';
+        totalEl.textContent = won(it.total||0);
+        right.appendChild(qtyEl);
+        right.appendChild(totalEl);
+
+        row.appendChild(left);
+        row.appendChild(right);
+        listEl.appendChild(row);
+      });
+    }
+
+    listCard.appendChild(listEl);
+    area.appendChild(listCard);
+  }
+
+  // 새 창에서 ?admin=1 로 열린 경우, 관리자 로그인 화면부터 시작
+  (function initAdminEntry(){
+    var params = new URLSearchParams(window.location.search);
+    if(params.get('admin') === '1'){
+      showScreen('screen-admin-login');
+    }
+  })();
 
   loadOptions();
 
