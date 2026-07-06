@@ -950,6 +950,26 @@
   var accountLine1 = '';
   var accountLine2 = '';
   var editOriginalPhone = '';
+
+  // ↓↓↓ 아래 값들은 '옵션' 시트에 있는 현재 내용을 그대로 한 번만 옮겨 적어주세요.
+  // (관리자모드 없이 그냥 이 부분만 시트 내용과 동일하게 채우면 됩니다.)
+  // 이렇게 하면 페이지가 열리자마자 0초 지연으로 먼저 이 내용을 보여주고,
+  // 그 다음 서버에서 최신 값을 받아와 혹시 달라진 부분만 조용히 갱신합니다.
+  // 즉, 시트에서 계좌번호/공지사항을 바꿔도 여기 코드를 다시 고칠 필요는 없고,
+  // 다만 "첫 화면에 뜨는 순간의 지연"만 없애기 위한 기본값(스냅샷) 역할입니다.
+  var DEFAULT_OPTIONS = {
+    panelTitle: '공지사항',                 // 옵션 시트 A1 값
+    panelLines: [                             // 옵션 시트 A2~ 값들 (한 줄씩)
+      // '예시 공지 1',
+      // '예시 공지 2'
+    ],
+    cautionLines: [                           // 옵션 시트 B2~ 값들 (한 줄씩)
+      // '예시 주의사항 1',
+      // '예시 주의사항 2'
+    ],
+    accountLine1: '',                         // 옵션 시트 C2 값
+    accountLine2: ''                          // 옵션 시트 C3 값 (계좌번호)
+  };
   var adminToken = '';
   var adminLastCandidates = null; // 동명이인 목록 뒤로가기용 상태 저장
 
@@ -1057,25 +1077,34 @@
   $('btn-go-edit').addEventListener('click', function(){ showScreen('screen-edit'); });
   $('btn-result-back').addEventListener('click', function(){ showScreen('screen-main'); });
 
-  function loadOptions(){
-    gsRun('getOptionsData').then(function(data){
-      $('panel-title').textContent = data.panelTitle || '공지사항';
-      $('panel-content').textContent = (data.panelLines || []).join('\n');
-      accountLine1 = data.accountLine1 || '';
-      accountLine2 = data.accountLine2 || '';
-      var accountDisplay = accountLine1 + (accountLine2 ? '\n' + accountLine2 : '');
-      $('account-display').textContent = accountDisplay;
-      $('account-display-2').textContent = accountDisplay;
+  function renderOptions(data){
+    $('panel-title').textContent = data.panelTitle || '공지사항';
+    $('panel-content').textContent = (data.panelLines || []).join('\n');
+    accountLine1 = data.accountLine1 || '';
+    accountLine2 = data.accountLine2 || '';
+    var accountDisplay = accountLine1 + (accountLine2 ? '\n' + accountLine2 : '');
+    $('account-display').textContent = accountDisplay;
+    $('account-display-2').textContent = accountDisplay;
 
-      var cautionWrap = $('caution-table');
-      cautionWrap.innerHTML = '';
-      (data.cautionLines || []).forEach(function(line){
-        var d = document.createElement('div');
-        d.textContent = line;
-        cautionWrap.appendChild(d);
-      });
+    var cautionWrap = $('caution-table');
+    cautionWrap.innerHTML = '';
+    (data.cautionLines || []).forEach(function(line){
+      var d = document.createElement('div');
+      d.textContent = line;
+      cautionWrap.appendChild(d);
+    });
+  }
+
+  function loadOptions(){
+    // 1) 기본값을 즉시 화면에 표시 (서버 응답을 기다리지 않음 → 체감 로딩 0초)
+    renderOptions(DEFAULT_OPTIONS);
+
+    // 2) 서버(시트)에서 최신 값을 받아와 조용히 갱신. 실패해도 기본값이 이미
+    //    떠 있는 상태이므로 사용자에게 에러 모달을 띄우지 않는다.
+    gsRun('getOptionsData').then(function(data){
+      renderOptions(data);
     }).catch(function(err){
-      showModal('초기 데이터를 불러오지 못했습니다.\n' + (err && err.message ? err.message : ''));
+      console.error('옵션 데이터 갱신 실패:', err);
     });
   }
 
