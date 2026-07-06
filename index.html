@@ -431,6 +431,28 @@
     text-align:center;
   }
 
+  .admin-history-panel{
+    background:var(--surface);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    padding:10px 12px;
+    margin-bottom:14px;
+    max-height:150px;
+    min-height:60px;
+    overflow-y:auto;
+    resize:vertical;
+    font-size:12.5px;
+    color:var(--ink);
+    line-height:1.6;
+  }
+  .admin-history-panel-title{font-size:12px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;}
+  .admin-history-item{padding:3px 0;border-bottom:1px dashed var(--line);word-break:break-all;}
+  .admin-history-item:last-child{border-bottom:none;}
+  .admin-history-item.is-withdrawn{color:#C62828;font-weight:700;}
+  body.admin-mode .admin-history-panel{background:var(--adm-surface);border-color:var(--adm-line);color:var(--adm-ink);}
+  body.admin-mode .admin-history-panel-title{color:var(--adm-ink-soft);}
+  body.admin-mode .admin-history-item{border-color:var(--adm-line);}
+
   .admin-lightform-banner{
     display:block;
     text-align:center;
@@ -1475,6 +1497,23 @@
       '<div class="admin-member-row"><span>전화번호</span><span>' + (res.phone || '-') + '</span></div>' +
       '<div class="admin-member-row"><span>적립금</span><span>' + (res.hasReward ? won(res.reward||0) : '없음') + '</span></div>';
     area.appendChild(memberCard);
+
+    // 탈퇴/재가입/회원정보수정 히스토리가 있으면 나열 (넘치면 드래그로 늘릴 수 있는 패널)
+    if(res.historyList && res.historyList.length){
+      var histPanel = document.createElement('div');
+      histPanel.className = 'admin-history-panel';
+      var histTitle = document.createElement('div');
+      histTitle.className = 'admin-history-panel-title';
+      histTitle.textContent = '변동 히스토리';
+      histPanel.appendChild(histTitle);
+      res.historyList.forEach(function(h){
+        var hItem = document.createElement('div');
+        hItem.className = 'admin-history-item' + (h.indexOf('탈퇴') === 0 ? ' is-withdrawn' : '');
+        hItem.textContent = h;
+        histPanel.appendChild(hItem);
+      });
+      area.appendChild(histPanel);
+    }
 
     // ▼ 일반회원 조회 결과창과 동일한 요약패널(구매건수/총금액/택배비포함여부/적립금사용)
     var adminItems = res.items || [];
