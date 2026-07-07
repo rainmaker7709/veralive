@@ -932,6 +932,8 @@
         <input type="text" id="admin-search-input" placeholder="닉네임, 성명 또는 전화번호 입력">
         <button class="btn-primary" id="btn-admin-search">검색</button>
       </div>
+      <p class="search-hint" id="admin-data-status" style="margin-top:8px;"></p>
+      <button class="btn-secondary" id="btn-admin-refresh" style="width:100%;margin-top:2px;">🔄 최신 데이터 다시 불러오기</button>
     </div>
 
     <div id="admin-result-area"></div>
@@ -987,10 +989,20 @@
   };
   var adminToken = '';
   var adminLastCandidates = null; // 동명이인 목록 뒤로가기용 상태 저장
+  var adminData = null; // 관리자 로그인 시 한 번에 받아온 { members: [...], ordersByNickname: {...} }
 
   function $(id){ return document.getElementById(id); }
   function won(n){ return Math.round(n).toLocaleString('ko-KR') + '원'; }
   function onlyDigits(s){ return (s||'').toString().replace(/\D/g,''); }
+
+  // Code.gs의 normalizePhone_ / normalizeNickname_ 과 동일한 로직 (관리자 클라이언트 검색용)
+  function normalizePhoneJS(s){ return (s||'').toString().replace(/\D/g,''); }
+  function normalizeNicknameJS(s){
+    if(s === null || s === undefined) return '';
+    var t = s.toString().replace(/\s+/g,'');
+    if(/^[A-Za-z]+$/.test(t)) return t.toLowerCase();
+    return t;
+  }
 
   function showScreen(id){
     document.querySelectorAll('.screen').forEach(function(el){ el.classList.add('hidden'); });
@@ -1406,9 +1418,102 @@
   function resetAdminState(){
     adminToken = '';
     adminLastCandidates = null;
+    adminData = null;
     $('admin-password').value = '';
     $('admin-search-input').value = '';
     $('admin-result-area').innerHTML = '';
+    if($('admin-data-status')) $('admin-data-status').textContent = '';
+  }
+
+  // 관리자모드 진입/새로고침 시 회원정보+판매내역을 한 번에 받아서 브라우저에 저장.
+  // 이후 검색과 구매내역 조회는 서버 호출 없이 이 데이터로 처리한다.
+  function loadAdminData(){
+    showLoading();
+    return gsRun('adminLoadAll', adminToken).then(function(res){
+      hideLoading();
+      if(!res.success){
+        showModal(res.message || '데이터를 불러오지 못했습니다.');
+        return;
+      }
+      adminData = res;
+      if($('admin-data-status')){
+        var now = new Date();
+        var hh = ('0'+now.getHours()).slice(-2), mm = ('0'+now.getMinutes()).slice(-2);
+        $('admin-data-status').textContent = '데이터 불러옴 (' + hh + ':' + mm + ' 기준)';
+      }
+    }).catch(function(err){
+      hideLoading();
+      showModal('데이터를 불러오는 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
+    });
+  }
+
+  function findMemberByNickname(nickname){
+    if(!adminData) return null;
+    var key = normalizeNicknameJS(nickname);
+    for(var i=0;i<adminData.members.length;i++){
+      if(normalizeNicknameJS(adminData.members[i].nickname) === key) return adminData.members[i];
+    }
+    return null;
+  }
+
+  function getOrdersForNickname(nickname){
+    var key = normalizeNicknameJS(nickname);
+    var o = (adminData && adminData.ordersByNickname && adminData.ordersByNickname[key]);
+    return o || { items: [], reward: 0, hasReward: false };
+  }
+
+  function buildAdminDetailFromLocal(m){
+    var orderData = getOrdersForNickname(m.nickname);
+    return {
+      success: true,
+      nickname: m.nickname,
+      name: m.name,
+      phone: m.phone,
+      withdrawn: m.withdrawn,
+      withdrawnNote: m.withdrawnNote,
+      historyList: m.historyList,
+      items: orderData.items,
+      reward: orderData.reward,
+      hasReward: orderData.hasReward
+    };
+  }
+
+  // adminSearchMembers(서버)와 동일한 매칭 로직을 브라우저 안에서 그대로 재현
+  function handleAdminSearchLocal(kw){
+    var isPhoneQuery = /^\d+$/.test(kw);
+    var matches = [];
+
+    if(isPhoneQuery){
+      var p = normalizePhoneJS(kw);
+      adminData.members.forEach(function(m){
+        if(normalizePhoneJS(m.phone) === p) matches.push(m);
+      });
+    } else {
+      var kwNorm = normalizeNicknameJS(kw);
+      var kwNameNorm = kw.replace(/\s+/g,'');
+      adminData.members.forEach(function(m){
+        var nickHit = kwNorm && normalizeNicknameJS(m.nickname).indexOf(kwNorm) !== -1;
+        var nameHit = kwNameNorm && (m.name||'').replace(/\s+/g,'').indexOf(kwNameNorm) !== -1;
+        if(nickHit || nameHit) matches.push(m);
+      });
+    }
+
+    if(matches.length === 0){
+      showModal('일치하는 회원을 찾을 수 없습니다.');
+      return;
+    }
+
+    if(matches.length > 1){
+      var candidates = matches.map(function(m){
+        return { nickname: m.nickname, name: m.name, phone: m.phone, withdrawn: m.withdrawn };
+      });
+      adminLastCandidates = candidates;
+      renderAdminCandidateList(candidates);
+      return;
+    }
+
+    adminLastCandidates = null;
+    renderAdminDetail(buildAdminDetailFromLocal(matches[0]));
   }
 
   $('btn-admin-login').addEventListener('click', function(){
@@ -1427,6 +1532,7 @@
       adminToken = res.token;
       $('admin-password').value = '';
       showScreen('screen-admin');
+      loadAdminData();
     }).catch(function(err){
       hideLoading();
       showModal('로그인 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
@@ -1438,44 +1544,28 @@
     showScreen('screen-main');
   });
 
+  $('btn-admin-refresh').addEventListener('click', function(){
+    adminLastCandidates = null;
+    $('admin-result-area').innerHTML = '';
+    loadAdminData();
+  });
+
   $('btn-admin-search').addEventListener('click', function(){
     var kw = $('admin-search-input').value.trim();
     if(!kw){
       showModal('검색어를 입력해주세요.');
       return;
     }
-    showLoading();
-    gsRun('adminSearchMembers', adminToken, kw).then(function(res){
-      hideLoading();
-      handleAdminSearchResult(res);
-    }).catch(function(err){
-      hideLoading();
-      showModal('검색 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
-    });
+    if(!adminData){
+      showModal('회원 데이터를 아직 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
+      return;
+    }
+    handleAdminSearchLocal(kw);
   });
 
   $('admin-search-input').addEventListener('keydown', function(e){
     if(e.key === 'Enter'){ $('btn-admin-search').click(); }
   });
-
-  function handleAdminSearchResult(res){
-    var area = $('admin-result-area');
-    area.innerHTML = '';
-
-    if(!res.success){
-      showModal(res.message || '검색 결과가 없습니다.');
-      return;
-    }
-
-    if(res.multiple){
-      adminLastCandidates = res.candidates;
-      renderAdminCandidateList(res.candidates);
-      return;
-    }
-
-    adminLastCandidates = null;
-    renderAdminDetail(res);
-  }
 
   function renderAdminCandidateList(candidates){
     var area = $('admin-result-area');
@@ -1494,18 +1584,12 @@
         '<span class="admin-candidate-name">' + c.nickname + (c.withdrawn ? ' <span class="admin-withdrawn-tag">탈퇴</span>' : '') + '</span>' +
         '<span class="admin-candidate-sub">' + c.name + ' · ' + c.phone + '</span>';
       item.addEventListener('click', function(){
-        showLoading();
-        gsRun('adminGetOrdersByNickname', adminToken, c.nickname).then(function(detailRes){
-          hideLoading();
-          if(!detailRes.success){
-            showModal(detailRes.message || '조회에 실패했습니다.');
-            return;
-          }
-          renderAdminDetail(detailRes);
-        }).catch(function(err){
-          hideLoading();
-          showModal('조회 중 오류가 발생했습니다.\n' + (err && err.message ? err.message : ''));
-        });
+        var m = findMemberByNickname(c.nickname);
+        if(!m){
+          showModal('조회에 실패했습니다.');
+          return;
+        }
+        renderAdminDetail(buildAdminDetailFromLocal(m));
       });
       area.appendChild(item);
     });
