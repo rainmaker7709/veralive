@@ -22,6 +22,9 @@
     --pink:#D6336C;
     --pink-dark:#A8245A;
     --danger:#C94B4B;
+    --pastel-red-bg:#FCE8E8;
+    --pastel-red-border:#F3C4C4;
+    --pastel-red-text:#C1504F;
     --purple:#9B7FD4;
     --purple-dark:#7B5FB4;
     --adm-bg:#F4EEFB;
@@ -267,6 +270,79 @@
     font-weight:700;
     color:var(--ink);
     margin:0 0 10px;
+  }
+
+  /* ▼ 세부 구매목록 타이틀 + 구매일자별로 보기 버튼 */
+  .list-card-header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:10px;
+  }
+  .list-card-header .section-label{ margin:0; }
+  .btn-date-filter{
+    flex-shrink:0;
+    background:var(--pastel-red-bg);
+    color:var(--pastel-red-text);
+    border:1px solid var(--pastel-red-border);
+    border-radius:var(--radius-sm);
+    font-size:12.5px;
+    font-weight:800;
+    padding:7px 11px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  body.admin-mode .btn-date-filter{
+    background:var(--pastel-red-bg);
+    color:var(--pastel-red-text);
+    border-color:var(--pastel-red-border);
+  }
+
+  /* ▼ 구매일자별로 보기 팝업 */
+  .date-filter-box{
+    max-width:320px;
+    text-align:left;
+    max-height:80vh;
+    display:flex;
+    flex-direction:column;
+  }
+  .date-filter-box p{ margin:0 0 14px; }
+  .date-filter-title{
+    font-size:15.5px;
+    font-weight:800;
+    color:var(--ink);
+    text-align:center;
+  }
+  .date-filter-list{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    overflow-y:auto;
+    margin-bottom:14px;
+    padding-right:2px;
+  }
+  .date-filter-item{
+    width:100%;
+    text-align:left;
+    background:var(--bg);
+    border:1px solid var(--line);
+    border-radius:var(--radius-sm);
+    padding:11px 13px;
+    font-size:14px;
+    font-weight:700;
+    color:var(--ink);
+    cursor:pointer;
+  }
+  .date-filter-item.is-all{
+    background:var(--accent-soft);
+    border-color:var(--accent);
+    color:var(--accent-dark);
+  }
+  .date-filter-item.is-active{
+    background:var(--pastel-red-bg);
+    border-color:var(--pastel-red-text);
+    color:var(--pastel-red-text);
   }
 
   .caution-table{
@@ -724,6 +800,14 @@
     </div>
   </div>
 
+  <div id="date-filter-overlay" class="modal-overlay hidden">
+    <div class="modal-box date-filter-box">
+      <p class="date-filter-title">구매일자 선택</p>
+      <div class="date-filter-list" id="date-filter-list"></div>
+      <button type="button" class="modal-btn" id="btn-date-filter-close">닫기</button>
+    </div>
+  </div>
+
   <div id="loading-overlay" class="loading-overlay hidden">
     <div class="spinner"></div>
   </div>
@@ -897,7 +981,10 @@
     </div>
 
     <div class="card list-card">
-      <h3 class="section-label">세부 구매목록</h3>
+      <div class="list-card-header">
+        <h3 class="section-label">세부 구매목록</h3>
+        <button type="button" class="btn-date-filter hidden" id="btn-date-filter">📅 구매일자별로 보기</button>
+      </div>
       <div class="order-list-scroll" id="order-list"></div>
     </div>
   </div>
@@ -947,6 +1034,7 @@
   var SHIPPING_FEE = 3500;
   var nickname = '';
   var items = [];
+  var filteredItems = []; // '구매일자별로 보기'에서 선택한 날짜로 걸러진 목록 (기본은 items 전체와 동일)
   var rewardAmount = 0;
   var hasReward = false;
   var accountLine1 = '';
@@ -1038,6 +1126,141 @@
     });
     $('modal-overlay').classList.remove('hidden');
   }
+
+  /* ---------------- 구매일자별로 보기 (일반/관리자 공용) ---------------- */
+
+  // "구매일자" 타입 텍스트를 최신순 정렬용 숫자로 변환 (예: "26.07.08수요일" → 20260708)
+  // 연도가 없으면(월.일만 있으면) 편의상 올해 연도를 붙여서 비교한다.
+  function parseDateSortKey(raw){
+    var m = (raw||'').toString().match(/^(\d{1,4})\.(\d{1,2})(?:\.(\d{1,2}))?/);
+    if(!m) return -1;
+    var a = parseInt(m[1],10);
+    var b = parseInt(m[2],10);
+    var c = (m[3] !== undefined) ? parseInt(m[3],10) : null;
+    var year, month, day;
+    if(c !== null){
+      year = a; month = b; day = c;
+      if(year < 100) year += 2000;
+    } else {
+      year = new Date().getFullYear(); month = a; day = b;
+    }
+    return year*10000 + month*100 + day;
+  }
+
+  // itemsArr 중 noType이 'date'인 값들을 원문 그대로 중복제거 + 최신순 정렬해서 반환
+  function getDateOptions(itemsArr){
+    var seen = {};
+    var list = [];
+    (itemsArr||[]).forEach(function(it){
+      if(it.noType === 'date' && it.productNo && !seen[it.productNo]){
+        seen[it.productNo] = true;
+        list.push(it.productNo);
+      }
+    });
+    list.sort(function(x,y){ return parseDateSortKey(y) - parseDateSortKey(x); });
+    return list;
+  }
+
+  // 구매내역 항목 리스트를 container 안에 그려준다 (일반 사용자 / 관리자 화면 공용)
+  function renderOrderItems_(container, itemsArr){
+    container.innerHTML = '';
+    if(!itemsArr.length){
+      var empty = document.createElement('div');
+      empty.className = 'empty-msg';
+      empty.textContent = '구매내역이 없습니다.';
+      container.appendChild(empty);
+      return;
+    }
+    itemsArr.forEach(function(it, idx){
+      var row = document.createElement('div');
+      row.className = 'order-item';
+
+      var left = document.createElement('div');
+      left.className = 'order-item-left';
+
+      if(it.productNo){
+        var noBadge = document.createElement('div');
+        noBadge.className = 'order-item-no-badge';
+        var prefix = '';
+        if(it.noType === 'productNo') prefix = '상품번호. ';
+        else if(it.noType === 'date') prefix = '구매일자. ';
+        noBadge.textContent = prefix + it.productNo;
+        left.appendChild(noBadge);
+      }
+
+      var header = document.createElement('div');
+      header.className = 'order-item-header';
+
+      var numBadge = document.createElement('span');
+      numBadge.className = 'order-item-num';
+      numBadge.textContent = idx + 1;
+      header.appendChild(numBadge);
+
+      var name = document.createElement('span');
+      name.className = 'order-item-name';
+      name.textContent = it.productName || '-';
+      header.appendChild(name);
+
+      left.appendChild(header);
+
+      if(it.option){
+        var opt = document.createElement('div');
+        opt.className = 'order-item-option';
+        opt.textContent = it.option;
+        left.appendChild(opt);
+      }
+
+      var right = document.createElement('div');
+      right.className = 'order-item-right';
+      var qtyEl = document.createElement('div');
+      qtyEl.className = 'order-item-qty';
+      qtyEl.textContent = (it.price||0).toLocaleString('ko-KR') + '원 × ' + (it.qty||0) + '개';
+      var totalEl = document.createElement('div');
+      totalEl.className = 'order-item-total';
+      totalEl.textContent = won(it.total||0);
+      right.appendChild(qtyEl);
+      right.appendChild(totalEl);
+
+      row.appendChild(left);
+      row.appendChild(right);
+      container.appendChild(row);
+    });
+  }
+
+  // 구매일자별로 보기 팝업을 열어서, 선택 시 onSelect(선택값 또는 null)을 호출
+  // onSelect에 null이 넘어오면 "모든 구매내역 보기"를 선택한 것
+  function openDateFilterPopup(dateList, onSelect){
+    var listEl = $('date-filter-list');
+    listEl.innerHTML = '';
+
+    var allBtn = document.createElement('button');
+    allBtn.type = 'button';
+    allBtn.className = 'date-filter-item is-all';
+    allBtn.textContent = '모든 구매내역 보기';
+    allBtn.addEventListener('click', function(){
+      $('date-filter-overlay').classList.add('hidden');
+      onSelect(null);
+    });
+    listEl.appendChild(allBtn);
+
+    dateList.forEach(function(d){
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'date-filter-item';
+      btn.textContent = d;
+      btn.addEventListener('click', function(){
+        $('date-filter-overlay').classList.add('hidden');
+        onSelect(d);
+      });
+      listEl.appendChild(btn);
+    });
+
+    $('date-filter-overlay').classList.remove('hidden');
+  }
+
+  $('btn-date-filter-close').addEventListener('click', function(){
+    $('date-filter-overlay').classList.add('hidden');
+  });
 
   var API_URL = 'https://script.google.com/macros/s/AKfycbwLhT6zwSjVKGna_MugQwaeEC6gQjO8TBV10_xyrg-9Q64OYW1FDQsfO_yjRxVmBuzw/exec';
 
@@ -1157,6 +1380,7 @@
       }
       nickname = res.nickname;
       items = res.items || [];
+      filteredItems = items;
       rewardAmount = res.reward || 0;
       hasReward = !!res.hasReward;
       renderResult();
@@ -1169,7 +1393,7 @@
 
   function calcTotals(){
     var qty = 0, base = 0;
-    items.forEach(function(it){ qty += (it.qty||0); base += (it.total||0); });
+    filteredItems.forEach(function(it){ qty += (it.qty||0); base += (it.total||0); });
     var noShipping = $('chk-no-shipping').checked;
     var useReward = $('chk-use-reward').checked;
     var shipping = noShipping ? 0 : SHIPPING_FEE;
@@ -1181,7 +1405,7 @@
 
   function updateTotalsDisplay(){
     var t = calcTotals();
-    var noItems = items.length === 0;
+    var noItems = filteredItems.length === 0;
     $('sum-qty').textContent = noItems ? '없음' : t.qty + '개';
     $('sum-total').textContent = noItems ? '-' : won(t.total);
     $('sum-total').style.color = noItems ? 'var(--ink-soft)' : '';
@@ -1194,73 +1418,29 @@
   $('chk-no-shipping').addEventListener('change', updateTotalsDisplay);
   $('chk-use-reward').addEventListener('change', updateTotalsDisplay);
 
+  // 구매일자별로 보기: 선택값(dateVal)이 null이면 전체, 아니면 해당 날짜 항목만 필터링
+  function applyResultDateFilter(dateVal){
+    filteredItems = dateVal ? items.filter(function(it){ return it.noType === 'date' && it.productNo === dateVal; }) : items;
+    updateTotalsDisplay();
+    renderOrderItems_($('order-list'), filteredItems);
+  }
+
+  $('btn-date-filter').addEventListener('click', function(){
+    openDateFilterPopup(getDateOptions(items), applyResultDateFilter);
+  });
+
   function renderResult(){
     $('chk-no-shipping').checked = false;
     $('chk-use-reward').checked = false;
+    filteredItems = items;
     updateTotalsDisplay();
 
     $('result-nickname-badge').textContent = nickname + ' 님의 구매내역';
 
-    var listEl = $('order-list');
-    listEl.innerHTML = '';
-    if(!items.length){
-      var empty = document.createElement('div');
-      empty.className = 'empty-msg';
-      empty.textContent = '구매내역이 없습니다.';
-      listEl.appendChild(empty);
-      return;
-    }
-    items.forEach(function(it, idx){
-      var row = document.createElement('div');
-      row.className = 'order-item';
+    var dateOptions = getDateOptions(items);
+    $('btn-date-filter').classList.toggle('hidden', dateOptions.length === 0);
 
-      var left = document.createElement('div');
-      left.className = 'order-item-left';
-
-      /* ▼ 수정3: 상품번호 배지 텍스트 변경 */
-      if(it.productNo){
-        var noBadge = document.createElement('div');
-        noBadge.className = 'order-item-no-badge';
-        noBadge.textContent = '상품번호. ' + it.productNo;
-        left.appendChild(noBadge);
-      }
-
-      var header = document.createElement('div');
-      header.className = 'order-item-header';
-
-      var numBadge = document.createElement('span');
-      numBadge.className = 'order-item-num';
-      numBadge.textContent = idx + 1;
-      header.appendChild(numBadge);
-
-      var name = document.createElement('span');
-      name.className = 'order-item-name';
-      name.textContent = it.productName || '-';
-      header.appendChild(name);
-
-      left.appendChild(header);
-
-      if(it.option){
-        var opt = document.createElement('div');
-        opt.className = 'order-item-option';
-        opt.textContent = it.option;
-        left.appendChild(opt);
-      }
-
-      var right = document.createElement('div');
-      right.className = 'order-item-right';
-      var qtyEl = document.createElement('div');
-      qtyEl.className = 'order-item-qty';
-      qtyEl.textContent = (it.price||0).toLocaleString('ko-KR') + '원 × ' + (it.qty||0) + '개';
-      var totalEl = document.createElement('div');
-      totalEl.className = 'order-item-total';
-      totalEl.textContent = won(it.total||0);
-      right.appendChild(qtyEl);
-      right.appendChild(totalEl);
-      row.appendChild(left);
-      row.appendChild(right);
-      listEl.appendChild(row);
-    });
+    renderOrderItems_($('order-list'), filteredItems);
   }
 
   $('btn-copy-order').addEventListener('click', function(){
@@ -1270,7 +1450,7 @@
     lines.push('총 금액: ' + won(t.total) + (t.noShipping ? ' (배송비 미포함)' : ' (배송비 3,500원 포함)'));
     lines.push('적립금: ' + (hasReward ? won(rewardAmount) + (t.rewardUsed ? ' (사용함)' : ' (미사용)') : '없음'));
     lines.push('');
-    items.forEach(function(it, idx){
+    filteredItems.forEach(function(it, idx){
       var optionText = it.option ? '(' + it.option + ')' : '';
       lines.push((idx+1) + '. ' + (it.productName||'-') + optionText + ' - ' + (it.qty||0) + '개 - ' + won(it.total||0));
     });
@@ -1645,6 +1825,7 @@
 
     // ▼ 일반회원 조회 결과창과 동일한 요약패널(구매건수/총금액/택배비포함여부/적립금사용)
     var adminItems = res.items || [];
+    var adminFilteredItems = adminItems; // '구매일자별로 보기'로 걸러진 목록 (기본은 전체와 동일)
     var adminReward = res.reward || 0;
     var adminHasReward = !!res.hasReward;
 
@@ -1668,14 +1849,14 @@
 
     function updateAdminSummary(){
       var qty = 0, base = 0;
-      adminItems.forEach(function(it){ qty += (it.qty||0); base += (it.total||0); });
+      adminFilteredItems.forEach(function(it){ qty += (it.qty||0); base += (it.total||0); });
       var noShipping = adminNoShipEl.checked;
       var useReward = adminUseRewardEl.checked;
       var shipping = noShipping ? 0 : SHIPPING_FEE;
       var rewardUsed = (adminHasReward && useReward) ? adminReward : 0;
       var total = base + shipping - rewardUsed;
       if(total < 0) total = 0;
-      var noItems = adminItems.length === 0;
+      var noItems = adminFilteredItems.length === 0;
       summaryCard.querySelector('#admin-sum-qty').textContent = noItems ? '없음' : qty + '개';
       summaryCard.querySelector('#admin-sum-total').textContent = noItems ? '-' : won(total);
       summaryCard.querySelector('#admin-shipping-note').textContent = noItems ? '' : (noShipping ? '배송비 3,500원이 포함되지 않은 금액입니다' : '배송비 3,500원이 포함된 총 금액입니다');
@@ -1690,72 +1871,35 @@
     var listCard = document.createElement('div');
     listCard.className = 'card list-card';
 
+    var listHeader = document.createElement('div');
+    listHeader.className = 'list-card-header';
+
     var label = document.createElement('h3');
     label.className = 'section-label';
     label.textContent = '세부 구매목록';
-    listCard.appendChild(label);
+    listHeader.appendChild(label);
+
+    var adminDateOptions = getDateOptions(adminItems);
+    if(adminDateOptions.length){
+      var dateFilterBtn = document.createElement('button');
+      dateFilterBtn.type = 'button';
+      dateFilterBtn.className = 'btn-date-filter';
+      dateFilterBtn.textContent = '📅 구매일자별로 보기';
+      dateFilterBtn.addEventListener('click', function(){
+        openDateFilterPopup(adminDateOptions, function(dateVal){
+          adminFilteredItems = dateVal ? adminItems.filter(function(it){ return it.noType === 'date' && it.productNo === dateVal; }) : adminItems;
+          updateAdminSummary();
+          renderOrderItems_(listEl, adminFilteredItems);
+        });
+      });
+      listHeader.appendChild(dateFilterBtn);
+    }
+
+    listCard.appendChild(listHeader);
 
     var listEl = document.createElement('div');
     listEl.className = 'order-list-scroll';
-
-    if(!adminItems.length){
-      var empty = document.createElement('div');
-      empty.className = 'empty-msg';
-      empty.textContent = '구매내역이 없습니다.';
-      listEl.appendChild(empty);
-    } else {
-      adminItems.forEach(function(it, idx){
-        var row = document.createElement('div');
-        row.className = 'order-item';
-
-        var left = document.createElement('div');
-        left.className = 'order-item-left';
-
-        if(it.productNo){
-          var noBadge = document.createElement('div');
-          noBadge.className = 'order-item-no-badge';
-          noBadge.textContent = '상품번호. ' + it.productNo;
-          left.appendChild(noBadge);
-        }
-
-        var header = document.createElement('div');
-        header.className = 'order-item-header';
-
-        var numBadge = document.createElement('span');
-        numBadge.className = 'order-item-num';
-        numBadge.textContent = idx + 1;
-        header.appendChild(numBadge);
-
-        var nameEl = document.createElement('span');
-        nameEl.className = 'order-item-name';
-        nameEl.textContent = it.productName || '-';
-        header.appendChild(nameEl);
-
-        left.appendChild(header);
-
-        if(it.option){
-          var opt = document.createElement('div');
-          opt.className = 'order-item-option';
-          opt.textContent = it.option;
-          left.appendChild(opt);
-        }
-
-        var right = document.createElement('div');
-        right.className = 'order-item-right';
-        var qtyEl = document.createElement('div');
-        qtyEl.className = 'order-item-qty';
-        qtyEl.textContent = (it.price||0).toLocaleString('ko-KR') + '원 × ' + (it.qty||0) + '개';
-        var totalEl = document.createElement('div');
-        totalEl.className = 'order-item-total';
-        totalEl.textContent = won(it.total||0);
-        right.appendChild(qtyEl);
-        right.appendChild(totalEl);
-
-        row.appendChild(left);
-        row.appendChild(right);
-        listEl.appendChild(row);
-      });
-    }
+    renderOrderItems_(listEl, adminFilteredItems);
 
     listCard.appendChild(listEl);
     area.appendChild(listCard);
