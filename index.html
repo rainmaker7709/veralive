@@ -344,6 +344,29 @@
     border-color:var(--pastel-red-text);
     color:var(--pastel-red-text);
   }
+  .date-filter-hint{
+    font-size:12px;
+    color:var(--ink-soft);
+    text-align:center;
+    margin:-8px 0 12px;
+    line-height:1.5;
+  }
+  .date-filter-item-check{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .date-filter-item-check input[type=checkbox]{
+    width:18px;
+    height:18px;
+    flex-shrink:0;
+    accent-color:var(--accent);
+  }
+  .date-filter-item-check.is-checked{
+    background:var(--pastel-red-bg);
+    border-color:var(--pastel-red-text);
+    color:var(--pastel-red-text);
+  }
 
   .caution-table{
     max-height:11.2em;
@@ -803,8 +826,12 @@
   <div id="date-filter-overlay" class="modal-overlay hidden">
     <div class="modal-box date-filter-box">
       <p class="date-filter-title">구매일자 선택</p>
+      <p class="date-filter-hint hidden" id="date-filter-hint">날짜를 여러 개 선택할 수 있어요. 선택 후 아래 '선택 완료'를 눌러주세요.</p>
       <div class="date-filter-list" id="date-filter-list"></div>
-      <button type="button" class="modal-btn" id="btn-date-filter-close">닫기</button>
+      <div class="modal-actions">
+        <button type="button" class="modal-btn" id="btn-date-filter-close">닫기</button>
+        <button type="button" class="modal-btn primary hidden" id="btn-date-filter-confirm">선택 완료</button>
+      </div>
     </div>
   </div>
 
@@ -1227,11 +1254,16 @@
     });
   }
 
-  // 구매일자별로 보기 팝업을 열어서, 선택 시 onSelect(선택값 또는 null)을 호출
+  // 구매일자별로 보기 팝업을 열어서, 선택 시 onSelect(선택값)을 호출
   // onSelect에 null이 넘어오면 "모든 구매내역 보기"를 선택한 것
+  // 날짜 목록이 3개 이상이면 체크박스로 복수선택 가능, 2개 이하면 기존처럼 클릭 즉시 선택
+  // 복수선택 시에는 onSelect에 선택된 날짜들의 배열이 전달됨
   function openDateFilterPopup(dateList, onSelect){
     var listEl = $('date-filter-list');
+    var hintEl = $('date-filter-hint');
+    var confirmBtn = $('btn-date-filter-confirm');
     listEl.innerHTML = '';
+    confirmBtn.onclick = null;
 
     var allBtn = document.createElement('button');
     allBtn.type = 'button';
@@ -1243,17 +1275,52 @@
     });
     listEl.appendChild(allBtn);
 
-    dateList.forEach(function(d){
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'date-filter-item';
-      btn.textContent = d;
-      btn.addEventListener('click', function(){
-        $('date-filter-overlay').classList.add('hidden');
-        onSelect(d);
+    var multiMode = dateList.length >= 3;
+    hintEl.classList.toggle('hidden', !multiMode);
+    confirmBtn.classList.toggle('hidden', !multiMode);
+
+    if(!multiMode){
+      dateList.forEach(function(d){
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'date-filter-item';
+        btn.textContent = d;
+        btn.addEventListener('click', function(){
+          $('date-filter-overlay').classList.add('hidden');
+          onSelect(d);
+        });
+        listEl.appendChild(btn);
       });
-      listEl.appendChild(btn);
-    });
+    } else {
+      dateList.forEach(function(d){
+        var label = document.createElement('label');
+        label.className = 'date-filter-item date-filter-item-check';
+
+        var chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.value = d;
+        chk.addEventListener('change', function(){
+          label.classList.toggle('is-checked', chk.checked);
+        });
+
+        var span = document.createElement('span');
+        span.textContent = d;
+
+        label.appendChild(chk);
+        label.appendChild(span);
+        listEl.appendChild(label);
+      });
+
+      confirmBtn.onclick = function(){
+        var selected = Array.prototype.slice.call(listEl.querySelectorAll('input[type=checkbox]:checked')).map(function(chk){ return chk.value; });
+        if(!selected.length){
+          showModal('구매일자를 하나 이상 선택해주세요.');
+          return;
+        }
+        $('date-filter-overlay').classList.add('hidden');
+        onSelect(selected);
+      };
+    }
 
     $('date-filter-overlay').classList.remove('hidden');
   }
@@ -1418,9 +1485,12 @@
   $('chk-no-shipping').addEventListener('change', updateTotalsDisplay);
   $('chk-use-reward').addEventListener('change', updateTotalsDisplay);
 
-  // 구매일자별로 보기: 선택값(dateVal)이 null이면 전체, 아니면 해당 날짜 항목만 필터링
+  // 구매일자별로 보기: 선택값(dateVal)이 null이면 전체, 문자열이면 해당 날짜만, 배열이면 해당 날짜들만 필터링
   function applyResultDateFilter(dateVal){
-    filteredItems = dateVal ? items.filter(function(it){ return it.noType === 'date' && it.productNo === dateVal; }) : items;
+    filteredItems = dateVal ? items.filter(function(it){
+      if(it.noType !== 'date') return false;
+      return Array.isArray(dateVal) ? dateVal.indexOf(it.productNo) !== -1 : it.productNo === dateVal;
+    }) : items;
     updateTotalsDisplay();
     renderOrderItems_($('order-list'), filteredItems);
   }
@@ -1887,7 +1957,10 @@
       dateFilterBtn.textContent = '📅 구매일자별로 보기';
       dateFilterBtn.addEventListener('click', function(){
         openDateFilterPopup(adminDateOptions, function(dateVal){
-          adminFilteredItems = dateVal ? adminItems.filter(function(it){ return it.noType === 'date' && it.productNo === dateVal; }) : adminItems;
+          adminFilteredItems = dateVal ? adminItems.filter(function(it){
+            if(it.noType !== 'date') return false;
+            return Array.isArray(dateVal) ? dateVal.indexOf(it.productNo) !== -1 : it.productNo === dateVal;
+          }) : adminItems;
           updateAdminSummary();
           renderOrderItems_(listEl, adminFilteredItems);
         });
