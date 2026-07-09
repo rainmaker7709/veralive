@@ -529,6 +529,28 @@
     margin-bottom:14px;
     text-align:center;
   }
+  .admin-nonmember-tag{
+    display:inline-block;
+    font-size:11px;
+    font-weight:800;
+    color:#fff;
+    background:#8D6E00;
+    border-radius:999px;
+    padding:2px 7px;
+    margin-left:6px;
+    vertical-align:middle;
+  }
+  .admin-nonmember-banner{
+    background:#FFF6E0;
+    border:1px solid #F0DA9E;
+    color:#8D6E00;
+    font-size:13.5px;
+    font-weight:700;
+    border-radius:var(--radius-sm);
+    padding:12px 14px;
+    margin-bottom:14px;
+    text-align:center;
+  }
 
   .admin-history-panel{
     background:var(--surface);
@@ -1174,14 +1196,32 @@
     return year*10000 + month*100 + day;
   }
 
-  // itemsArr 중 noType이 'date'인 값들을 원문 그대로 중복제거 + 최신순 정렬해서 반환
+  // "구매일자" 타입 원문에서 순수 날짜(+요일)만 뽑아 표준 라벨로 정규화한다.
+  // 예: "07.08수요일" → "07.08수요일", "07.08수요일 특가" → "07.08수요일", "07.08 특가" → "07.08"
+  // 날짜(또는 날짜+요일) 뒤에 붙은 메모/텍스트는 같은 날짜로 묶기 위해 라벨에서 제외한다.
+  function normalizeDateLabel(raw){
+    var s = (raw||'').toString().trim();
+    var m = s.match(/^(\d{1,4}\.\d{1,2}(?:\.\d{1,2})?)/);
+    if(!m) return s;
+    var label = m[1];
+    var rest = s.slice(m[1].length);
+    var w = rest.match(/^(월|화|수|목|금|토|일)요일/);
+    if(w) label += w[0];
+    return label;
+  }
+
+  // itemsArr 중 noType이 'date'인 값들을 정규화된 라벨 기준으로 중복제거 + 최신순 정렬해서 반환
+  // (예: "07.08수요일"과 "07.08수요일 특가"는 같은 날짜로 묶여 "07.08수요일" 하나로 표시됨)
   function getDateOptions(itemsArr){
     var seen = {};
     var list = [];
     (itemsArr||[]).forEach(function(it){
-      if(it.noType === 'date' && it.productNo && !seen[it.productNo]){
-        seen[it.productNo] = true;
-        list.push(it.productNo);
+      if(it.noType === 'date' && it.productNo){
+        var label = normalizeDateLabel(it.productNo);
+        if(label && !seen[label]){
+          seen[label] = true;
+          list.push(label);
+        }
       }
     });
     list.sort(function(x,y){ return parseDateSortKey(y) - parseDateSortKey(x); });
@@ -1486,10 +1526,12 @@
   $('chk-use-reward').addEventListener('change', updateTotalsDisplay);
 
   // 구매일자별로 보기: 선택값(dateVal)이 null이면 전체, 문자열이면 해당 날짜만, 배열이면 해당 날짜들만 필터링
+  // (정규화된 날짜 라벨 기준으로 비교하므로 "07.08수요일 특가"도 "07.08수요일"과 같은 날짜로 취급됨)
   function applyResultDateFilter(dateVal){
     filteredItems = dateVal ? items.filter(function(it){
       if(it.noType !== 'date') return false;
-      return Array.isArray(dateVal) ? dateVal.indexOf(it.productNo) !== -1 : it.productNo === dateVal;
+      var label = normalizeDateLabel(it.productNo);
+      return Array.isArray(dateVal) ? dateVal.indexOf(label) !== -1 : label === dateVal;
     }) : items;
     updateTotalsDisplay();
     renderOrderItems_($('order-list'), filteredItems);
@@ -1724,11 +1766,33 @@
       historyList: m.historyList,
       items: orderData.items,
       reward: orderData.reward,
-      hasReward: orderData.hasReward
+      hasReward: orderData.hasReward,
+      notMember: false
     };
   }
 
-  // adminSearchMembers(서버)와 동일한 매칭 로직을 브라우저 안에서 그대로 재현
+  // 회원가입 이력이 없는(출력결과 시트에만 존재하는) 닉네임 조회용.
+  // 성명/전화번호/히스토리는 없으며 "회원 미가입" 표시와 함께 구매내역만 보여준다.
+  function buildAdminDetailNonMember(nickname){
+    var orderData = getOrdersForNickname(nickname);
+    return {
+      success: true,
+      nickname: nickname,
+      name: '',
+      phone: '',
+      withdrawn: false,
+      withdrawnNote: '',
+      historyList: [],
+      items: orderData.items,
+      reward: orderData.reward,
+      hasReward: orderData.hasReward,
+      notMember: true
+    };
+  }
+
+  // adminSearchMembers(서버)와 동일한 매칭 로직을 브라우저 안에서 그대로 재현.
+  // 등록된 회원(adminData.members)뿐 아니라, 회원가입 없이 "출력결과" 시트에만
+  // 구매내역이 있는 닉네임(adminData.ordersByNickname)도 함께 검색해 "회원 미가입"으로 보여준다.
   function handleAdminSearchLocal(kw){
     var isPhoneQuery = /^\d+$/.test(kw);
     var matches = [];
@@ -1736,7 +1800,7 @@
     if(isPhoneQuery){
       var p = normalizePhoneJS(kw);
       adminData.members.forEach(function(m){
-        if(normalizePhoneJS(m.phone) === p) matches.push(m);
+        if(normalizePhoneJS(m.phone) === p) matches.push({ isMember: true, data: m });
       });
     } else {
       var kwNorm = normalizeNicknameJS(kw);
@@ -1744,8 +1808,21 @@
       adminData.members.forEach(function(m){
         var nickHit = kwNorm && normalizeNicknameJS(m.nickname).indexOf(kwNorm) !== -1;
         var nameHit = kwNameNorm && (m.name||'').replace(/\s+/g,'').indexOf(kwNameNorm) !== -1;
-        if(nickHit || nameHit) matches.push(m);
+        if(nickHit || nameHit) matches.push({ isMember: true, data: m });
       });
+
+      // 비회원 구매내역(출력결과 시트 전용 닉네임) 검색 — 닉네임 일치만 대상으로 하며,
+      // 이미 회원으로 매칭된 닉네임은 중복 표시하지 않는다.
+      if(kwNorm && adminData.ordersByNickname){
+        Object.keys(adminData.ordersByNickname).forEach(function(key){
+          var entry = adminData.ordersByNickname[key];
+          var nick = entry && entry.nickname;
+          if(!nick) return;
+          if(key.indexOf(kwNorm) === -1) return;
+          if(findMemberByNickname(nick)) return; // 이미 회원 매칭에 포함됨
+          matches.push({ isMember: false, data: { nickname: nick } });
+        });
+      }
     }
 
     if(matches.length === 0){
@@ -1755,7 +1832,9 @@
 
     if(matches.length > 1){
       var candidates = matches.map(function(m){
-        return { nickname: m.nickname, name: m.name, phone: m.phone, withdrawn: m.withdrawn };
+        return m.isMember
+          ? { nickname: m.data.nickname, name: m.data.name, phone: m.data.phone, withdrawn: m.data.withdrawn, isMember: true }
+          : { nickname: m.data.nickname, name: '', phone: '', withdrawn: false, isMember: false };
       });
       adminLastCandidates = candidates;
       renderAdminCandidateList(candidates);
@@ -1763,7 +1842,8 @@
     }
 
     adminLastCandidates = null;
-    renderAdminDetail(buildAdminDetailFromLocal(matches[0]));
+    var only = matches[0];
+    renderAdminDetail(only.isMember ? buildAdminDetailFromLocal(only.data) : buildAdminDetailNonMember(only.data.nickname));
   }
 
   $('btn-admin-login').addEventListener('click', function(){
@@ -1830,10 +1910,16 @@
       var item = document.createElement('button');
       item.type = 'button';
       item.className = 'admin-candidate-item';
+      var tag = c.withdrawn ? ' <span class="admin-withdrawn-tag">탈퇴</span>'
+        : (!c.isMember ? ' <span class="admin-nonmember-tag">회원 미가입</span>' : '');
       item.innerHTML =
-        '<span class="admin-candidate-name">' + c.nickname + (c.withdrawn ? ' <span class="admin-withdrawn-tag">탈퇴</span>' : '') + '</span>' +
-        '<span class="admin-candidate-sub">' + c.name + ' · ' + c.phone + '</span>';
+        '<span class="admin-candidate-name">' + c.nickname + tag + '</span>' +
+        '<span class="admin-candidate-sub">' + (c.isMember ? (c.name + ' · ' + c.phone) : '회원 미가입') + '</span>';
       item.addEventListener('click', function(){
+        if(!c.isMember){
+          renderAdminDetail(buildAdminDetailNonMember(c.nickname));
+          return;
+        }
         var m = findMemberByNickname(c.nickname);
         if(!m){
           showModal('조회에 실패했습니다.');
@@ -1860,7 +1946,12 @@
       area.appendChild(backBtn);
     }
 
-    if(res.withdrawnNote){
+    if(res.notMember){
+      var nonMemberBanner = document.createElement('div');
+      nonMemberBanner.className = 'admin-nonmember-banner';
+      nonMemberBanner.textContent = '⚠ 회원 미가입 (구매내역만 존재하는 닉네임입니다)';
+      area.appendChild(nonMemberBanner);
+    } else if(res.withdrawnNote){
       var withdrawnBanner = document.createElement('div');
       withdrawnBanner.className = 'admin-withdrawn-banner';
       withdrawnBanner.textContent = res.withdrawnNote;
@@ -1871,8 +1962,8 @@
     memberCard.className = 'admin-member-card';
     memberCard.innerHTML =
       '<div class="admin-member-row"><span>닉네임</span><span>' + (res.nickname || '-') + '</span></div>' +
-      '<div class="admin-member-row"><span>성명</span><span>' + (res.name || '-') + '</span></div>' +
-      '<div class="admin-member-row"><span>전화번호</span><span>' + (res.phone || '-') + '</span></div>' +
+      '<div class="admin-member-row"><span>성명</span><span>' + (res.notMember ? '회원 미가입' : (res.name || '-')) + '</span></div>' +
+      '<div class="admin-member-row"><span>전화번호</span><span>' + (res.notMember ? '회원 미가입' : (res.phone || '-')) + '</span></div>' +
       '<div class="admin-member-row"><span>적립금</span><span>' + (res.hasReward ? won(res.reward||0) : '없음') + '</span></div>';
     area.appendChild(memberCard);
 
@@ -1959,7 +2050,8 @@
         openDateFilterPopup(adminDateOptions, function(dateVal){
           adminFilteredItems = dateVal ? adminItems.filter(function(it){
             if(it.noType !== 'date') return false;
-            return Array.isArray(dateVal) ? dateVal.indexOf(it.productNo) !== -1 : it.productNo === dateVal;
+            var label = normalizeDateLabel(it.productNo);
+            return Array.isArray(dateVal) ? dateVal.indexOf(label) !== -1 : label === dateVal;
           }) : adminItems;
           updateAdminSummary();
           renderOrderItems_(listEl, adminFilteredItems);
