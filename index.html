@@ -715,8 +715,9 @@
   .order-item:last-child{border-bottom:none;}
   .order-item-left{min-width:0;}
   .order-item-name{font-size:14px;font-weight:700;color:var(--ink);}
-  .order-item-option{font-size:12px;color:var(--ink-soft);margin-top:2px;padding-left:27px;}
-  .order-item-no{font-size:11px;color:var(--ink-soft);margin-top:2px;}
+.order-item-gift{font-size:12px;color:var(--ink-soft);margin-top:2px;padding-left:27px;}
+.order-item-option{font-size:12px;color:var(--ink-soft);margin-top:2px;padding-left:27px;}
+.order-item-no{font-size:11px;color:var(--ink-soft);margin-top:2px;}
   .order-item-right{
     text-align:right;
     flex-shrink:0;
@@ -1265,13 +1266,20 @@
       header.appendChild(numBadge);
 
       var name = document.createElement('span');
-      name.className = 'order-item-name';
-      name.textContent = it.productName || '-';
-      header.appendChild(name);
+name.className = 'order-item-name';
+name.textContent = it.productName || '-';
+header.appendChild(name);
 
-      left.appendChild(header);
+left.appendChild(header);
 
-      if(it.option){
+if(it.isGift){
+  var giftBadge = document.createElement('div');
+  giftBadge.className = 'order-item-gift';
+  giftBadge.textContent = '🎁선물';
+  left.appendChild(giftBadge);
+}
+
+if(it.option){
         var opt = document.createElement('div');
         opt.className = 'order-item-option';
         opt.textContent = it.option;
